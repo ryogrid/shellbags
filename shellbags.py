@@ -63,6 +63,8 @@ def date_safe_str(d):
 
 ################ CLASS DEFINITIONS #############v
 
+OUTPUT_ENCODING = 'utf-8'
+
 class ShellbagException(Exception):
     """
     Base Exception class for shellbag parsing.
@@ -89,14 +91,20 @@ def try_collect_decode(data):
     if(type(data) is unicode):
         return data
 
-    try:
+    if data == "":
         return data.decode('ascii')
+
+    try:
+        enc = chardet.detect(data)['encoding']
+        print(enc)
+        print("try decode data as detected encoding")
+        return data.decode(enc)
     except (UnicodeDecodeError, UnicodeEncodeError) as error:
-#        print('UniCodeDecodeError catched. decode data as utf-16le')
-        print('UniCodeDecodeError catched. decode data as utf-16')
+#        print('UniCodeDecodeError catched. decode data as utf-16')
         try:
-#            return data.decode('utf-16le')
-            return data.decode('utf-16')            
+            print("try decode data as ascii")
+            return data.decode('ascii')
+#            return data.decode('utf-16')
         except (UnicodeDecodeError, UnicodeEncodeError) as error2:
             print('UniCodeDecodeError catched. try decode with charactor set detecting')
             enc = chardet.detect(data)['encoding']
@@ -128,14 +136,14 @@ def get_shellbags(shell_key):
         Throws:
         """
 
-        #print(("call: " + str(key) + ", " + unicode(bag_prefix) + ", " + unicode(path_prefix)).encode('utf-8'))
-        print("call: " + str(key) + ", " + try_collect_decode(bag_prefix) + ", " + try_collect_decode(path_prefix)).encode('utf-8')
+        #print(("call: " + str(key) + ", " + unicode(bag_prefix) + ", " + unicode(path_prefix)).encode(OUTPUT_ENCODING))
+        print("call: " + str(key) + ", " + try_collect_decode(bag_prefix) + ", " + try_collect_decode(path_prefix)).encode(OUTPUT_ENCODING)
         if type(path_prefix) is unicode or path_prefix == "":
-            print(path_prefix).encode('utf-8')
+            print(path_prefix).encode(OUTPUT_ENCODING)
         else:
 #            enc = chardet.detect(path_prefix)['encoding']
 #            print(enc + ":" + path_prefix.decode(enc))
-            print(try_collect_decode(path_prefix)).encode('utf-8')
+            print(try_collect_decode(path_prefix)).encode(OUTPUT_ENCODING)
         try:
             # First, consider the current key, and extract shellbag items
             #print("First, consider the current key, and extract shellbag items")
@@ -174,7 +182,7 @@ def get_shellbags(shell_key):
             print("Registry.RegistryKeyNotFoundException")
             pass
         except:
-            print(("Unexpected error %s" % sys.exc_info()[0]).encode('utf-8'))
+            print(("Unexpected error %s" % sys.exc_info()[0]).encode(OUTPUT_ENCODING))
 
         # Next, recurse into each BagMRU key
         #print("Next, recurse into each BagMRU key")
@@ -207,8 +215,8 @@ def get_shellbags(shell_key):
                         "klwt": key.timestamp()
                     })
             except OverrunBufferException:
-                print key.path().encode('utf-8')
-                print value.name().encode('utf-8')
+                print key.path().encode(OUTPUT_ENCODING)
+                print value.name().encode(OUTPUT_ENCODING)
                 raise
 
             shellbag_rec(key.subkey(value.name()),
@@ -246,9 +254,9 @@ def get_all_shellbags(reg):
         except Registry.RegistryKeyNotFoundException:
             pass
         except Exception as error:
-            print(unicode(error).encode('utf-8'))
+            print(unicode(error).encode(OUTPUT_ENCODING))
             traceback.print_exc()
-            print(("Unhandled exception while parsing %s" % path).encode('utf-8'))
+            print(("Unhandled exception while parsing %s" % path).encode(OUTPUT_ENCODING))
 
     return shellbags
 
@@ -294,13 +302,13 @@ def print_shellbag_bodyfile(m, a, cr, path, fail_note=None):
     changed = int(calendar.timegm(datetime.datetime.min.timetuple()))
     try:
         print (u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
-            (path, modified, accessed, changed, created)).encode('utf-8')
+            (path, modified, accessed, changed, created)).encode(OUTPUT_ENCODING)
     except UnicodeDecodeError:
         print (u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
-            (fail_note, modified, accessed, changed, created)).encode('utf-8')
+            (fail_note, modified, accessed, changed, created)).encode(OUTPUT_ENCODING)
     except UnicodeEncodeError:
         print (u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
-            (fail_note, modified, accessed, changed, created)).encode('utf-8')
+            (fail_note, modified, accessed, changed, created)).encode(OUTPUT_ENCODING)
 
 
 ################ MAIN  #############
