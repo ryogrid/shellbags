@@ -95,15 +95,13 @@ def try_collect_decode(data):
         return data.decode('ascii')
 
     try:
-        enc = chardet.detect(data)['encoding']
-        print(enc)
-        print("try decode data as detected encoding")
-        return data.decode(enc)
+        print("try decode data as ascii")
+        return data.decode("ascii")
     except (UnicodeDecodeError, UnicodeEncodeError) as error:
 #        print('UniCodeDecodeError catched. decode data as utf-16')
         try:
-            print("try decode data as ascii")
-            return data.decode('ascii')
+            print("try decode data as utf16-le")
+            return data.decode('utf_16_le')
 #            return data.decode('utf-16')
         except (UnicodeDecodeError, UnicodeEncodeError) as error2:
             print('UniCodeDecodeError catched. try decode with charactor set detecting')
