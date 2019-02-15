@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 #    This file is part of shellbags.py
 #
@@ -24,14 +25,20 @@ import logging
 import datetime
 import argparse
 import calendar
+import traceback
+import chardet
 
 from Registry import Registry
 
 from BinaryParser import OverrunBufferException
 from ShellItems import SHITEMLIST
 
-g_logger = logging.getLogger("shellbags")
+# sysモジュールをリロードする
+#reload(sys)
+# デフォルトの文字コードを変更する
+#sys.setdefaultencoding('utf-8')
 
+g_logger = logging.getLogger("shellbags")
 
 def date_safe(d):
     """
@@ -78,6 +85,24 @@ class ShellbagException(Exception):
 
 ################ PROGRAM FUNCTIONS #############
 
+def try_collect_decode(data):
+    if(type(data) is unicode):
+        return data
+
+    try:
+        return data.decode('ascii')
+    except (UnicodeDecodeError, UnicodeEncodeError) as error:
+#        print('UniCodeDecodeError catched. decode data as utf-16le')
+        print('UniCodeDecodeError catched. decode data as utf-16')
+        try:
+#            return data.decode('utf-16le')
+            return data.decode('utf-16')            
+        except (UnicodeDecodeError, UnicodeEncodeError) as error2:
+            print('UniCodeDecodeError catched. try decode with charactor set detecting')
+            enc = chardet.detect(data)['encoding']
+            print(enc)
+            return data.decode(enc)
+
 def get_shellbags(shell_key):
     """
     Given a python-registry RegistryKey object, look for and return a
@@ -102,8 +127,18 @@ def get_shellbags(shell_key):
             file system path so far constructed.
         Throws:
         """
+
+        #print(("call: " + str(key) + ", " + unicode(bag_prefix) + ", " + unicode(path_prefix)).encode('utf-8'))
+        print("call: " + str(key) + ", " + try_collect_decode(bag_prefix) + ", " + try_collect_decode(path_prefix)).encode('utf-8')
+        if type(path_prefix) is unicode or path_prefix == "":
+            print(path_prefix).encode('utf-8')
+        else:
+#            enc = chardet.detect(path_prefix)['encoding']
+#            print(enc + ":" + path_prefix.decode(enc))
+            print(try_collect_decode(path_prefix)).encode('utf-8')
         try:
             # First, consider the current key, and extract shellbag items
+            #print("First, consider the current key, and extract shellbag items")
             slot = key.value("NodeSlot").value()
             for bag in bags_key.subkey(str(slot)).subkeys():
                 for value in [value for value in bag.values() if
@@ -123,25 +158,26 @@ def get_shellbags(shell_key):
                         else:
                             item = block.get_item(offset)
                             shellbags.append({
-                                "path": path_prefix + "\\" + item.name(),
+                                "path": path_prefix + "\\" + try_collect_decode(item.name()),
                                 "mtime": item.m_date(),
                                 "atime": item.a_date(),
                                 "crtime": item.cr_date(),
-                                "source":  bag.path() + " @ " + hex(item.offset()),
-                                "regsource": bag.path() + "\\" + value.name(),
+                                "source":  try_collect_decode(bag.path()) + " @ " + hex(item.offset()),
+                                "regsource": try_collect_decode(bag.path()) + "\\" + try_collect_decode(value.name()),
                                 "klwt": key.timestamp()
                             })
                         offset += size
         except Registry.RegistryValueNotFoundException:
-            g_logger.warning("Registry.RegistryValueNotFoundException")
+            print("Registry.RegistryValueNotFoundException")
             pass
         except Registry.RegistryKeyNotFoundException:
-            g_logger.warning("Registry.RegistryKeyNotFoundException")
+            print("Registry.RegistryKeyNotFoundException")
             pass
         except:
-            g_logger.warning("Unexpected error %s" % sys.exc_info()[0])
+            print(("Unexpected error %s" % sys.exc_info()[0]).encode('utf-8'))
 
         # Next, recurse into each BagMRU key
+        #print("Next, recurse into each BagMRU key")
         for value in [value for value in key.values()
                       if re.match("\d+", value.name())]:
             path = ""
@@ -150,19 +186,29 @@ def get_shellbags(shell_key):
                 for item in l.items():
                     # assume there is only one entry in the value, or take the last
                     # as the path component
-                    path = path_prefix + "\\" + item.name()
+                    if path_prefix == "":
+                        path = "\\" + item.name()
+                    elif type(path_prefix) is unicode:
+                        if type(item.name()) is unicode or item.name() == "":
+                            path = path_prefix + "\\" + item.name()
+                        else :
+                            #path = path_prefix + "\\" + item.name().decode(chardet.detect(item.name())['encoding'])
+                            path = path_prefix + "\\" + try_collect_decode(item.name())
+                    else:
+                        path = try_collect_decode(path_prefix) + "\\" + item.name()
+                        #path = path_prefix.decode(chardet.detect(path_prefix)['encoding']) + "\\" + item.name()
                     shellbags.append({
-                        "path":  path,
+                        "path": path,
                         "mtime": item.m_date(),
                         "atime": item.a_date(),
                         "crtime": item.cr_date(),
-                        "source": key.path() + " @ " + hex(item.offset()),
+                        "source":  key.path() + " @ " + hex(item.offset()),
                         "regsource": key.path() + "\\" + value.name(),
-                        "klwt":  key.timestamp()
+                        "klwt": key.timestamp()
                     })
             except OverrunBufferException:
-                print key.path()
-                print value.name()
+                print key.path().encode('utf-8')
+                print value.name().encode('utf-8')
                 raise
 
             shellbag_rec(key.subkey(value.name()),
@@ -199,8 +245,10 @@ def get_all_shellbags(reg):
             shellbags.extend(new)
         except Registry.RegistryKeyNotFoundException:
             pass
-        except Exception:
-            g_logger.exception("Unhandled exception while parsing %s" % path)
+        except Exception as error:
+            print(unicode(error).encode('utf-8'))
+            traceback.print_exc()
+            print(("Unhandled exception while parsing %s" % path).encode('utf-8'))
 
     return shellbags
 
@@ -245,14 +293,14 @@ def print_shellbag_bodyfile(m, a, cr, path, fail_note=None):
     created = date_safe(cr)
     changed = int(calendar.timegm(datetime.datetime.min.timetuple()))
     try:
-        print u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
-            (path, modified, accessed, changed, created)
+        print (u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
+            (path, modified, accessed, changed, created)).encode('utf-8')
     except UnicodeDecodeError:
-        print u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
-            (fail_note, modified, accessed, changed, created)
+        print (u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
+            (fail_note, modified, accessed, changed, created)).encode('utf-8')
     except UnicodeEncodeError:
-        print u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
-            (fail_note, modified, accessed, changed, created)
+        print (u"0|%s (Shellbag)|0|0|0|0|0|%s|%s|%s|%s" % \
+            (fail_note, modified, accessed, changed, created)).encode('utf-8')
 
 
 ################ MAIN  #############
@@ -260,7 +308,7 @@ def print_shellbag_bodyfile(m, a, cr, path, fail_note=None):
 def main(argv=None):
     if argv is None:
         argv = sys.argv
-        
+
     parser = argparse.ArgumentParser(description="Parse Shellbag entries from a Windows Registry.")
     parser.add_argument("-v", action="store_true", dest="vverbose",
                         help="Print debugging information while parsing")
@@ -287,6 +335,6 @@ def main(argv=None):
                                         fail_note="Failed to parse entry name from: " + shellbag["source"])
         else:
             print "Error: Unsupported output format"
-            
+
 if __name__ == "__main__":
     main(argv=sys.argv)
